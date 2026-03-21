@@ -417,10 +417,13 @@ We ran the same 13-test suite against three models to compare capabilities. Thes
 | Phase | qwen3-coder | gpt-5.4 | opus-4.6 | What Changed |
 |-------|:-----------:|:-------:|:--------:|--------------|
 | Initial run | 7/13 | 7/13 | 8/13 | Raw tests, basic judge |
-| After Round 1 | — | — | — | Fixed brittle assertions, strengthened prompts |
-| After Round 2 | **10/13** | **11/13** | **12/13** | Hardened judge with evidence-based verdicts |
+| After refinement | **10/13** | **11/13** | **12/13** | Loosened brittle assertions, strengthened prompts, hardened judge |
 
-The biggest single improvement was reforming the judge system. Changing from a blunt "say PASS or FAIL" prompt to requiring **evidence → reasoning → verdict** eliminated false negatives where the judge would fail tests that clearly passed on inspection.
+We refined the tests in two rounds:
+
+1. **Fixed brittle assertions** — Replaced exact text matches with flexible regex patterns (e.g., `1,?249` to handle number formatting), loosened semantic criteria that were ambiguous (e.g., allowing technical terms if explained), and strengthened system prompts for multi-turn and skill tests.
+
+2. **Hardened the judge** — Replaced the blunt "say PASS or FAIL" judge prompt with a structured **evidence → reasoning → verdict** protocol. This forced the judge to quote specific output before ruling, applied a principle of charity ("80% of criteria met = PASS"), and eliminated false negatives where the judge would fail tests that clearly passed on inspection. This single change was the biggest improvement.
 
 ## Lessons Learned
 
