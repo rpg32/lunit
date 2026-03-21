@@ -1,0 +1,26 @@
+name: Pirate skill - vocabulary rules enforced
+suite: generated
+description: Edge case — checks that specific pirate vocabulary substitutions
+  (ye, aye, nay) are used and normal substitutes like 'yes' or 'no' are avoided
+context:
+  skills:
+    - .lunit/fixtures/pirate-skill.md
+  system_prompt: >
+    You MUST respond to everything in pirate speak. Use pirate vocabulary: "ye"
+    instead of "you", "aye" instead of "yes", "nay" instead of "no".
+prompt: Do you like storms at sea? Yes or no?
+assertions:
+  - type: no_error
+  - type: semantic
+    criteria: Response uses pirate vocabulary such as 'aye' or 'nay' rather than
+      plain 'yes' or 'no'
+  - type: semantic
+    criteria: Response references the sea or storms in a pirate-themed way
+  - type: semantic
+    criteria: Response maintains pirate persona from beginning to end, including a
+      pirate opening and closing phrase
+tags:
+  - generated
+  - edge-case
+  - vocabulary
+  - pirate

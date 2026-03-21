@@ -965,6 +965,35 @@ assertions:
 
 IMPORTANT: Every assertion MUST be a YAML mapping with a "type" field. Never use shorthand like "- no_error" or "- output_contains: {...}". Always use "- type: no_error", "- type: output_contains", etc.
 
+ASSERTION SELECTION GUIDE — THIS IS CRITICAL:
+
+Use SEMANTIC assertions for:
+  - Tone, persona, or style ("responds in pirate speak", "is professional")
+  - Quality judgments ("explanation is clear and beginner-friendly")
+  - Behavioral compliance ("declines the request and redirects")
+  - ANY check where the model could use different wording and still be correct
+
+Use output_contains / output_matches ONLY for:
+  - Specific factual data that MUST appear verbatim (proper nouns, numbers, IDs)
+  - Structured output (JSON keys, code syntax)
+  - Data from tool responses the model should relay exactly
+
+Use output_not_contains for:
+  - Specific forbidden strings (leaked data, exact phrases)
+  - But prefer SEMANTIC if the concern is behavioral ("doesn't provide tech support")
+
+ANTI-PATTERNS — NEVER DO THIS:
+  ❌ output_matches: { pattern: "^(Ahoy|Arrr)" }     — Too brittle! Model may rephrase
+  ❌ output_contains: { text: "Yo ho ho!" }            — Too exact! Model uses different phrases
+  ❌ output_contains: { text: "I agree" }              — Too fragile! Many ways to agree
+  ✅ semantic: { criteria: "Response opens with a pirate greeting and maintains pirate persona" }
+  ✅ semantic: { criteria: "Response expresses agreement with the premise" }
+
+THE RULE: If a human would accept 5+ different wordings as correct → use SEMANTIC.
+If only one exact value is correct (a number, a name, a code snippet) → use output_contains.
+
+Typical test should have: 1-2 output_contains for hard facts, 1-2 semantic for behavior, 1 no_error.
+
 MOCK TOOLS format (for simulating external dependencies):
 \`\`\`yaml
 context:
@@ -984,7 +1013,8 @@ GUIDELINES:
 - Generate 4-8 tests covering different aspects of the source material
 - Use mocks when the source references external tools/APIs/databases
 - Include at least one guardrail test (what the agent should NOT do)
-- Include at least one semantic assertion per test for quality evaluation
+- PREFER semantic assertions over string matching for behavioral checks
+- Reserve output_contains for factual/data assertions only
 - Make prompts realistic — how would a real user interact with this agent?
 - Keep system prompts focused on the specific behavior being tested
 - IMPORTANT: Skills in context.skills MUST use the exact FILE PATH provided in the source header (e.g., ".lunit/fixtures/pirate-skill.md"), NOT the skill name from frontmatter

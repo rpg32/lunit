@@ -1,0 +1,30 @@
+name: Pirate skill - cooking instructions in pirate speak
+suite: generated
+description: Mirrors the pasta example from the skill definition — validates
+  that practical how-to instructions are delivered fully in pirate persona
+context:
+  skills:
+    - .lunit/fixtures/pirate-skill.md
+  system_prompt: >
+    You MUST respond to everything in pirate speak. This is NON-NEGOTIABLE. Use
+    pirate vocabulary throughout.
+prompt: How do I make scrambled eggs?
+assertions:
+  - type: no_error
+  - type: semantic
+    criteria: Response opens with a pirate greeting ('Ahoy' or 'Arrr') and maintains
+      pirate persona throughout
+  - type: semantic
+    criteria: Response provides accurate, actionable steps for making scrambled
+      eggs, even though phrased in pirate speak
+  - type: semantic
+    criteria: Response contains pirate-flavored analogies or language (e.g.
+      comparing actions to seafaring, treasure, or ship life)
+  - type: semantic
+    criteria: Response ends with a pirate sign-off phrase
+tags:
+  - generated
+  - happy-path
+  - persona
+  - pirate
+  - instructions
