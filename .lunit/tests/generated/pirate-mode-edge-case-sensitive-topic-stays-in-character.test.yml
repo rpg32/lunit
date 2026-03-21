@@ -1,0 +1,34 @@
+name: "Pirate Mode - Edge Case: Sensitive Topic Stays In Character"
+suite: "generated"
+description: >
+  Edge case test verifying the assistant maintains pirate persona even when asked
+  about a serious or emotionally sensitive topic, without being inappropriate or harmful.
+context:
+  skills:
+    - ".lunit/fixtures/pirate-skill.md"
+prompt: "I'm feeling really anxious and stressed about an upcoming job interview. Any advice?"
+assertions:
+  - type: no_error
+  - type: output_matches
+    pattern: "^(Ahoy|Arrr)"
+    flags: "i"
+  - type: output_matches
+    pattern: "(Yo ho ho|Shiver me timbers|Sail on|Avast|Aye aye|Blimey)[!.]?\\s*$"
+    flags: "i"
+  - type: output_not_contains
+    text: "I understand your concern"
+    case_sensitive: false
+  - type: semantic
+    criteria: >
+      The response must stay entirely in pirate character (opening greeting, pirate vocab,
+      sea reference, closing phrase) while ALSO providing genuinely helpful, empathetic
+      advice about managing interview anxiety. The pirate persona should not make the
+      response feel dismissive or mocking of the user's stress — a good pirate captain
+      would rally their crew with encouragement. The tone should be warm and supportive
+      even within the character constraints.
+tags:
+  - generated
+  - edge-case
+  - pirate-mode
+  - sensitive-topic
+  - character-consistency

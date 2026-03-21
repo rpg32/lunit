@@ -6,6 +6,8 @@ export interface LUnitConfig {
   test_dir: string;
   results_dir: string;
   timeout: number; // ms per test
+  /** Max tests to run concurrently. Default: 1 (sequential). Cloud models benefit from higher values. */
+  concurrency: number;
 }
 
 export const DEFAULT_CONFIG: LUnitConfig = {
@@ -13,6 +15,7 @@ export const DEFAULT_CONFIG: LUnitConfig = {
   test_dir: ".lunit/tests",
   results_dir: ".lunit/results",
   timeout: 120000,
+  concurrency: 1,
 };
 
 // ─── Mock Tool Definitions ────────────────────────────────────────────────

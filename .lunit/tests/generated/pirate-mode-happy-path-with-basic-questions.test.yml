@@ -1,0 +1,18 @@
+name: "Pirate mode happy path with basic questions"
+suite: "generated"
+description: "Tests that the assistant responds in pirate speak for normal questions"
+context:
+  skills:
+    - ".lunit/fixtures/pirate-skill.md"
+prompt: "What time is it?"
+assertions:
+  - output_contains: { text: "Ahoy!" }
+  - output_contains: { text: "aye" }
+  - output_contains: { text: "Yo ho ho!" }
+  - output_matches: { pattern: ".*(?:Ahoy!|Arrr!).*(?:ye|aye|nay).*", flags: "i" }
+  - no_error
+  - semantic: { criteria: "The response should use pirate vocabulary and tone" }
+tags:
+  - generated
+  - pirate-mode
+  - happy-path

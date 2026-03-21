@@ -80,6 +80,7 @@ export async function loadConfig(cwd: string): Promise<LUnitConfig> {
     test_dir: ".lunit/tests",
     results_dir: ".lunit/results",
     timeout: 120000,
+    concurrency: 1,
   };
   try {
     const content = await readFile(join(cwd, ".lunit", "config.yml"), "utf-8");
@@ -95,8 +96,14 @@ export async function loadConfig(cwd: string): Promise<LUnitConfig> {
 export async function parseTestFile(filePath: string): Promise<TestDefinition> {
   const content = await readFile(filePath, "utf-8");
   const ext = extname(filePath).toLowerCase();
-  if (ext === ".json") return JSON.parse(content) as TestDefinition;
-  return parseYaml(content) as TestDefinition;
+  const parsed = ext === ".json"
+    ? JSON.parse(content) as TestDefinition
+    : parseYaml(content) as TestDefinition;
+  // Normalize assertions to canonical { type: ... } format
+  if (parsed.assertions && Array.isArray(parsed.assertions)) {
+    parsed.assertions = normalizeAssertions(parsed.assertions) as TestDefinition["assertions"];
+  }
+  return parsed;
 }
 
 export async function discoverTests(
@@ -659,7 +666,34 @@ export async function runSingleTest(
 
     // System prompt
     if (test.context?.system_prompt) {
-      loaderOpts.systemPromptOverride = () => test.context!.system_prompt!;
+      // If skills are loaded, append a reminder to follow them
+      if (test.context?.skills?.length) {
+        const skillNames = test.context.skills.map((s) => s.split("/").pop()?.replace(".md", "")).join(", ");
+        loaderOpts.systemPromptOverride = () =>
+          `${test.context!.system_prompt!}\n\nYou have loaded skills: ${skillNames}. Follow ALL instructions from these skills exactly.`;
+      } else {
+        loaderOpts.systemPromptOverride = () => test.context!.system_prompt!;
+      }
+    } else if (test.context?.skills?.length) {
+      // No explicit system prompt but skills are loaded — build one that ensures
+      // the model reads and follows the skills (in Pi, skills are "available" but
+      // need to be activated)
+      const skillContents: string[] = [];
+      for (const sp of test.context.skills) {
+        const resolved = resolve(cwd, sp);
+        try {
+          const content = await readFile(resolved, "utf-8");
+          // Strip frontmatter
+          const stripped = content.replace(/^---[\s\S]*?---\s*/, "").trim();
+          skillContents.push(stripped);
+        } catch {
+          // Skill file not found — will error later in skill loading
+        }
+      }
+      if (skillContents.length > 0) {
+        loaderOpts.systemPromptOverride = () =>
+          `You are a helpful assistant. You MUST follow these active skill instructions exactly:\n\n${skillContents.join("\n\n---\n\n")}`;
+      }
     }
 
     // AGENTS.md — always override to prevent global AGENTS.md from leaking in
@@ -794,4 +828,307 @@ export async function runSingleTest(
       error: error.message ?? String(error),
     };
   }
+}
+
+// ─── Parallel Test Runner ─────────────────────────────────────────────────
+
+export interface ParallelRunOptions {
+  modelOverride?: string;
+  concurrency: number;
+  signal?: AbortSignal;
+  onTestStart?: (index: number, total: number, testName: string) => void;
+  onTestEnd?: (index: number, total: number, testName: string, status: string) => void;
+  onProgress?: (running: string[], completed: number, total: number) => void;
+}
+
+export async function runTestsParallel(
+  tests: { path: string; test: TestDefinition; parseError?: string }[],
+  config: LUnitConfig,
+  cwd: string,
+  options: ParallelRunOptions
+): Promise<import("./types.ts").TestResult[]> {
+  const results: (import("./types.ts").TestResult | null)[] = new Array(tests.length).fill(null);
+
+  // Separate parse errors (instant) from valid tests (need execution)
+  const validIndices: number[] = [];
+  for (let i = 0; i < tests.length; i++) {
+    if (tests[i].parseError) {
+      results[i] = {
+        name: tests[i].test.name,
+        file: tests[i].path,
+        status: "error",
+        duration_ms: 0,
+        model: "",
+        prompt: "",
+        output: "",
+        tool_calls: [],
+        assertions: [],
+        error: `Parse error: ${tests[i].parseError}`,
+      };
+    } else {
+      validIndices.push(i);
+    }
+  }
+
+  let completed = 0;
+  const running = new Set<string>();
+
+  async function executeTest(idx: number): Promise<void> {
+    if (options.signal?.aborted) return;
+
+    const { path: testPath, test } = tests[idx];
+    running.add(test.name);
+    options.onTestStart?.(idx, tests.length, test.name);
+    options.onProgress?.([...running], completed, tests.length);
+
+    const result = await runSingleTest(test, testPath, config, cwd, {
+      modelOverride: options.modelOverride,
+    });
+
+    results[idx] = result;
+    running.delete(test.name);
+    completed++;
+    options.onTestEnd?.(idx, tests.length, test.name, result.status);
+    options.onProgress?.([...running], completed, tests.length);
+  }
+
+  // Concurrency pool
+  const concurrency = Math.max(1, options.concurrency);
+  let nextIdx = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIdx < validIndices.length) {
+      if (options.signal?.aborted) return;
+      const idx = validIndices[nextIdx++];
+      await executeTest(idx);
+    }
+  }
+
+  const workerCount = Math.min(concurrency, validIndices.length);
+  const workers = Array.from({ length: workerCount }, () => worker());
+  await Promise.all(workers);
+
+  return results.filter((r): r is import("./types.ts").TestResult => r !== null);
+}
+
+// ─── Test Generation ──────────────────────────────────────────────────────
+
+const TEST_GENERATOR_SYSTEM_PROMPT = `You are a test engineer specializing in LLM behavioral testing. Your job is to generate comprehensive YAML test definitions for an LLM testing framework called LUnit.
+
+Given source material (skills, extensions, system prompts, tool definitions), you generate tests that cover:
+1. **Happy path** — Normal expected behavior
+2. **Edge cases** — Unusual inputs, boundary conditions
+3. **Error handling** — What happens when things go wrong
+4. **Guardrails** — Behaviors that should NOT occur
+5. **Tool usage** — Correct tool selection and parameter passing (if tools are involved)
+
+OUTPUT FORMAT: Respond with multiple YAML test definitions, each inside a fenced code block:
+
+\`\`\`yaml
+name: "Test name"
+suite: "generated"
+# ... full test definition
+\`\`\`
+
+Each test MUST include:
+- name (descriptive)
+- suite (use "generated" as default)
+- description (what it validates)
+- context (system_prompt, skills, mocks as appropriate)
+- prompt (the input)
+- assertions (at least 2 per test, mix deterministic and semantic)
+- tags (include "generated" plus relevant tags)
+
+ASSERTION FORMAT — each assertion is an object with a "type" field:
+
+assertions:
+  - type: tool_called
+    tool: "tool_name"
+    params_contain:
+      key: "value"
+  - type: tool_not_called
+    tool: "tool_name"
+  - type: output_contains
+    text: "expected text"
+    case_sensitive: false
+  - type: output_not_contains
+    text: "forbidden text"
+  - type: output_matches
+    pattern: "regex pattern"
+    flags: "i"
+  - type: no_error
+  - type: output_json
+    contains:
+      key: "value"
+  - type: semantic
+    criteria: "natural language criteria for LLM judge"
+
+IMPORTANT: Every assertion MUST be a YAML mapping with a "type" field. Never use shorthand like "- no_error" or "- output_contains: {...}". Always use "- type: no_error", "- type: output_contains", etc.
+
+MOCK TOOLS format (for simulating external dependencies):
+\`\`\`yaml
+context:
+  mocks:
+    - tool: tool_name
+      description: "What it does"
+      parameters:
+        param1: { type: "string", description: "..." }
+      responses:
+        - match: { param1: "value" }
+          return: '{"result": "data"}'
+        - default: '{"error": "not found"}'
+          is_error: true
+\`\`\`
+
+GUIDELINES:
+- Generate 4-8 tests covering different aspects of the source material
+- Use mocks when the source references external tools/APIs/databases
+- Include at least one guardrail test (what the agent should NOT do)
+- Include at least one semantic assertion per test for quality evaluation
+- Make prompts realistic — how would a real user interact with this agent?
+- Keep system prompts focused on the specific behavior being tested
+- IMPORTANT: Skills in context.skills MUST use the exact FILE PATH provided in the source header (e.g., ".lunit/fixtures/pirate-skill.md"), NOT the skill name from frontmatter
+- Also include relevant instructions from the skill as context.system_prompt for reinforcement
+- Do NOT use any tools yourself — just output YAML`;
+
+export interface GenerateOptions {
+  modelOverride?: string;
+  onProgress?: (msg: string) => void;
+}
+
+const ASSERTION_TYPES = new Set([
+  "tool_called", "tool_not_called", "output_contains", "output_not_contains",
+  "output_matches", "no_error", "output_json", "semantic"
+]);
+
+/**
+ * Normalize assertions from various model output formats to the canonical { type: ... } format.
+ * Handles:
+ *   - Bare strings like "no_error" → { type: "no_error" }
+ *   - Shorthand maps like { output_contains: { text: "..." } } → { type: "output_contains", text: "..." }
+ *   - Already correct { type: "output_contains", text: "..." } → pass through
+ */
+function normalizeAssertions(assertions: any[]): any[] {
+  return assertions.map((a) => {
+    // Already has type field — pass through
+    if (a && typeof a === "object" && typeof a.type === "string") return a;
+
+    // Bare string like "no_error"
+    if (typeof a === "string" && ASSERTION_TYPES.has(a)) return { type: a };
+
+    // Shorthand map like { output_contains: { text: "..." } } or { no_error: true/null }
+    if (a && typeof a === "object") {
+      const keys = Object.keys(a);
+      for (const key of keys) {
+        if (ASSERTION_TYPES.has(key)) {
+          const value = a[key];
+          if (value && typeof value === "object") {
+            return { type: key, ...value };
+          }
+          return { type: key };
+        }
+      }
+    }
+
+    // Can't normalize — return as-is (will fail at assertion runtime with a clear error)
+    return a;
+  });
+}
+
+export async function generateTests(
+  sourcePaths: string[],
+  config: LUnitConfig,
+  cwd: string,
+  options: GenerateOptions
+): Promise<{ tests: string[]; rawOutput: string }> {
+  // Read all source files
+  const sources: { path: string; content: string; type: string }[] = [];
+  for (const sp of sourcePaths) {
+    const resolved = resolve(cwd, sp.trim());
+    try {
+      const content = await readFile(resolved, "utf-8");
+      const ext = extname(resolved).toLowerCase();
+      let type = "unknown";
+      if (ext === ".md") type = content.includes("---") ? "skill" : "document";
+      if (ext === ".ts" || ext === ".js") type = "extension";
+      if (ext === ".yml" || ext === ".yaml") type = "config";
+      if (ext === ".txt") type = "system-prompt";
+      sources.push({ path: sp.trim(), content, type });
+    } catch (e: any) {
+      sources.push({ path: sp.trim(), content: `ERROR: Could not read file: ${e.message}`, type: "error" });
+    }
+  }
+
+  // Build the generation prompt
+  const sourceBlocks = sources
+    .map(
+      (s) =>
+        `### Source file: "${s.path}" (type: ${s.type})\nUse this exact path in context.skills: ["${s.path}"]\n\`\`\`\n${s.content.substring(0, 5000)}\n\`\`\``
+    )
+    .join("\n\n");
+
+  const prompt = `Generate comprehensive LUnit test cases for the following source material:\n\n${sourceBlocks}\n\nAnalyze what behaviors are testable and generate 4-8 YAML test definitions. Include happy path, edge cases, guardrails, and error handling tests. Use mock tools where the source references external dependencies.\n\nREMINDER: In context.skills, use the exact file paths shown above (e.g., "${sourcePaths[0]}"), NOT skill names.`;
+
+  // Resolve model
+  options.onProgress?.("Resolving model for test generation...");
+  const modelStr = options.modelOverride ?? config.default_model;
+  const { model, authStorage, modelRegistry } = await resolveModel(modelStr);
+
+  // Create generation session
+  options.onProgress?.("Spawning test generation session...");
+  const loader = new DefaultResourceLoader({
+    cwd: join(cwd, ".lunit", ".isolated"),
+    agentDir: join(cwd, ".lunit", ".isolated"),
+    systemPromptOverride: () => TEST_GENERATOR_SYSTEM_PROMPT,
+    skillsOverride: () => ({ skills: [], diagnostics: [] }),
+    agentsFilesOverride: () => ({ agentsFiles: [] }),
+    promptsOverride: () => ({ prompts: [], diagnostics: [] }),
+  });
+  await loader.reload();
+
+  const { session } = await createAgentSession({
+    model,
+    thinkingLevel: "off",
+    sessionManager: SessionManager.inMemory(),
+    settingsManager: SettingsManager.inMemory({ compaction: { enabled: false } }),
+    resourceLoader: loader,
+    authStorage,
+    modelRegistry,
+    tools: [], // Generator doesn't need tools
+  });
+
+  let output = "";
+  session.subscribe((event: any) => {
+    if (event.type === "message_update" && event.assistantMessageEvent?.type === "text_delta") {
+      output += event.assistantMessageEvent.delta;
+    }
+  });
+
+  options.onProgress?.("Generating tests...");
+  await session.prompt(prompt);
+  session.dispose();
+
+  // Extract YAML blocks from output
+  const yamlBlocks: string[] = [];
+  // Tolerant regex: allow optional whitespace around fences, handle CRLF
+  const yamlRegex = /`{3,}ya?ml[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*`{3,}/g;
+  let match;
+  while ((match = yamlRegex.exec(output)) !== null) {
+    const yaml = match[1].trim();
+    // Validate it has required fields
+    try {
+      let parsed = parseYaml(yaml) as any;
+      if (parsed.name && (parsed.prompt || parsed.prompts) && parsed.assertions) {
+        // Normalize assertions to ensure they use { type: ... } format
+        parsed.assertions = normalizeAssertions(parsed.assertions);
+        // Re-serialize with normalized assertions
+        const { stringify: stringifyYaml } = await import("yaml");
+        yamlBlocks.push(stringifyYaml(parsed).trim());
+      }
+    } catch {
+      // Skip invalid YAML blocks
+    }
+  }
+
+  return { tests: yamlBlocks, rawOutput: output };
 }

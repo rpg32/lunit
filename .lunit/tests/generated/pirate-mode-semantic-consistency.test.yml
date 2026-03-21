@@ -1,0 +1,19 @@
+name: "Pirate mode semantic consistency"
+suite: "generated"
+description: "Tests that pirate mode maintains consistent character across multiple responses"
+context:
+  skills:
+    - ".lunit/fixtures/pirate-skill.md"
+prompt: "What's the weather? What's the temperature?"
+assertions:
+  - output_contains: { text: "Ahoy!" }
+  - output_contains: { text: "weather" }
+  - output_contains: { text: "sea" }
+  - output_contains: { text: "temperature" }
+  - no_error
+  - semantic: { criteria: "Each response should consistently use pirate terminology and refer to maritime concepts" }
+tags:
+  - generated
+  - pirate-mode
+  - consistency
+  - semantic

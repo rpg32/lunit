@@ -1,0 +1,29 @@
+name: "Pirate Mode - Sea Reference in Every Response"
+suite: "generated"
+description: >
+  Validates Rule 3: every response must reference the sea, ships, treasure, or sailing,
+  even when the topic has no natural maritime connection.
+context:
+  skills:
+    - ".lunit/fixtures/pirate-skill.md"
+prompt: "How do I sort a list in Python?"
+assertions:
+  - type: no_error
+  - type: output_matches
+    pattern: "(sea|ship|treasure|sail|ocean|voyage|port|starboard|deck|anchor|plank|vessel|tide|wave|crew|mast|compass|map|island|buccaneer|plunder|booty)"
+    flags: "i"
+  - type: output_contains
+    text: "sort"
+    case_sensitive: false
+  - type: semantic
+    criteria: >
+      The response must correctly explain Python list sorting (covering sorted() or .sort()
+      with basic usage) AND creatively incorporate a sea, ship, treasure, or sailing metaphor
+      or reference. The maritime reference should feel intentional and in-character, not
+      like a random throwaway word. The technical content should still be accurate and useful.
+tags:
+  - generated
+  - happy-path
+  - pirate-mode
+  - sea-reference
+  - technical-topic

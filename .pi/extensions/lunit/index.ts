@@ -6,7 +6,14 @@ import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { join, resolve, relative } from "node:path";
 
 import type { RunSummary, TestDefinition, LUnitConfig } from "./types.ts";
-import { loadConfig, discoverTests, parseTestFile, runSingleTest } from "./engine.ts";
+import {
+  loadConfig,
+  discoverTests,
+  parseTestFile,
+  runSingleTest,
+  runTestsParallel,
+  generateTests,
+} from "./engine.ts";
 import {
   formatRunSummary,
   formatTestDetail,
@@ -32,6 +39,11 @@ results_dir: ".lunit/results"
 
 # Default timeout per test (ms)
 timeout: 120000
+
+# Max tests to run in parallel (default: 1 = sequential)
+# Use higher values with cloud models for faster runs
+# Local models (Ollama) should stay at 1
+concurrency: 1
 `;
 
 const SAMPLE_TEST = `# Sample LUnit Test
@@ -210,9 +222,11 @@ export default function (pi: ExtensionAPI) {
       "Use `lunit` with action 'refine' to analyze failures and get actionable improvement suggestions",
       "Test YAML supports 'context.mocks' for simulating tool responses without real execution",
       "Assertion types: tool_called, tool_not_called, output_contains, output_not_contains, output_matches, no_error, output_json, semantic",
+      "Use `lunit` with action 'generate' and provide a source file path to auto-generate tests from skills, extensions, or system prompts",
+      "Use `concurrency` parameter (e.g., 5) with cloud models to run tests in parallel for faster execution",
     ],
     parameters: Type.Object({
-      action: StringEnum(["init", "create", "list", "run", "results", "refine"] as const),
+      action: StringEnum(["init", "create", "list", "run", "results", "refine", "generate"] as const),
       test_content: Type.Optional(
         Type.String({ description: "YAML content for a new test definition (for 'create')" })
       ),
@@ -232,6 +246,18 @@ export default function (pi: ExtensionAPI) {
       path: Type.Optional(Type.String({ description: "Path to a specific test file to run" })),
       verbose: Type.Optional(
         Type.Boolean({ description: "Show detailed output per test (default: false)" })
+      ),
+      concurrency: Type.Optional(
+        Type.Number({
+          description:
+            "Max tests to run in parallel (default: from config, typically 1). Use higher values with cloud models.",
+        })
+      ),
+      source: Type.Optional(
+        Type.String({
+          description:
+            "For 'generate': path(s) to source files to generate tests from (skill .md, extension .ts, or system prompt). Comma-separated for multiple files.",
+        })
       ),
     }),
 
@@ -380,64 +406,35 @@ export default function (pi: ExtensionAPI) {
             };
           }
 
-          // Separate valid tests from parse errors
-          const validTests = testsToRun.filter((t) => !t.parseError);
-          const parseErrors = testsToRun.filter((t) => t.parseError);
+          const concurrency = params.concurrency ?? config.concurrency ?? 1;
+          const modeLabel = concurrency > 1 ? ` (${concurrency}x parallel)` : "";
 
           onUpdate?.({
-            content: [{ type: "text", text: `🧪 Running ${validTests.length} test(s)...` }],
+            content: [
+              {
+                type: "text",
+                text: `🧪 Running ${testsToRun.length} test(s)${modeLabel}...`,
+              },
+            ],
           });
 
           const runStart = Date.now();
-          const results: import("./types.ts").TestResult[] = [];
 
-          // Record parse errors as test errors
-          for (const pe of parseErrors) {
-            results.push({
-              name: pe.test.name,
-              file: pe.path,
-              status: "error",
-              duration_ms: 0,
-              model: "",
-              prompt: "",
-              output: "",
-              tool_calls: [],
-              assertions: [],
-              error: `Parse error: ${pe.parseError}`,
-            });
-          }
-
-          // Run valid tests sequentially
-          for (let i = 0; i < validTests.length; i++) {
-            if (signal?.aborted) break;
-
-            const { path: testPath, test } = validTests[i];
-
-            onUpdate?.({
-              content: [
-                {
-                  type: "text",
-                  text: `🧪 Running ${validTests.length} test(s)...\n\n  [${i + 1}/${validTests.length}] ${test.name}...`,
-                },
-              ],
-            });
-
-            const result = await runSingleTest(test, testPath, config, cwd, {
-              modelOverride: params.model,
-              onProgress: (msg) => {
-                onUpdate?.({
-                  content: [
-                    {
-                      type: "text",
-                      text: `🧪 Running ${validTests.length} test(s)...\n\n  [${i + 1}/${validTests.length}] ${msg}`,
-                    },
-                  ],
-                });
-              },
-            });
-
-            results.push(result);
-          }
+          const results = await runTestsParallel(testsToRun, config, cwd, {
+            modelOverride: params.model,
+            concurrency,
+            signal: signal ?? undefined,
+            onProgress: (running, completed, total) => {
+              const lines = [`🧪 Running${modeLabel}: ${completed}/${total} done`];
+              if (running.length > 0) {
+                lines.push("");
+                for (const name of running) {
+                  lines.push(`  ⏳ ${name}...`);
+                }
+              }
+              onUpdate?.({ content: [{ type: "text", text: lines.join("\n") }] });
+            },
+          });
 
           // Build run summary
           const runId = new Date()
@@ -549,9 +546,90 @@ export default function (pi: ExtensionAPI) {
           };
         }
 
+        // ── GENERATE ──────────────────────────────────────────
+        case "generate": {
+          if (!params.source) {
+            throw new Error(
+              "source is required for 'generate' action. Provide path(s) to skill files, extensions, or system prompts. Comma-separated for multiple."
+            );
+          }
+
+          const sourcePaths = params.source.split(",").map((s) => s.trim().replace(/^@/, ""));
+
+          onUpdate?.({
+            content: [
+              {
+                type: "text",
+                text: `🔬 Analyzing ${sourcePaths.length} source file(s) for test generation...`,
+              },
+            ],
+          });
+
+          const { tests: generatedYamls, rawOutput } = await generateTests(
+            sourcePaths,
+            config,
+            cwd,
+            {
+              modelOverride: params.model,
+              onProgress: (msg) => {
+                onUpdate?.({
+                  content: [{ type: "text", text: `🔬 ${msg}` }],
+                });
+              },
+            }
+          );
+
+          if (generatedYamls.length === 0) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `⚠️ No valid test definitions were generated. The model output:\n\n${rawOutput.substring(0, 2000)}`,
+                },
+              ],
+              details: { rawOutput: rawOutput.substring(0, 5000) },
+            };
+          }
+
+          // Save each generated test
+          const generatedDir = resolve(cwd, config.test_dir, "generated");
+          await mkdir(generatedDir, { recursive: true });
+
+          const savedFiles: string[] = [];
+          for (let i = 0; i < generatedYamls.length; i++) {
+            const yaml = generatedYamls[i];
+            const parsed = (await import("yaml")).parse(yaml) as any;
+            const name = parsed.name ?? `generated-test-${i + 1}`;
+            const fileName = `${name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+$/, "")}.test.yml`;
+            const filePath = join(generatedDir, fileName);
+            await writeFile(filePath, yaml);
+            savedFiles.push(relative(cwd, filePath));
+          }
+
+          const lines = [
+            `✅ Generated ${generatedYamls.length} test(s) from ${sourcePaths.length} source file(s):\n`,
+          ];
+          for (const f of savedFiles) {
+            lines.push(`  📝 ${f}`);
+          }
+          lines.push(
+            `\nTests saved to ${relative(cwd, generatedDir)}/`
+          );
+          lines.push(`Run them with: lunit run --suite generated`);
+
+          return {
+            content: [{ type: "text", text: lines.join("\n") }],
+            details: {
+              generated: savedFiles,
+              count: generatedYamls.length,
+              sources: sourcePaths,
+            },
+          };
+        }
+
         default: {
           throw new Error(
-            `Unknown action: ${params.action}. Valid actions: init, create, list, run, results, refine`
+            `Unknown action: ${params.action}. Valid actions: init, create, list, run, results, refine, generate`
           );
         }
       }

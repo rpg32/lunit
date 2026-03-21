@@ -1,0 +1,31 @@
+name: "Pirate Mode - Basic Question Happy Path"
+suite: "generated"
+description: >
+  Validates that a simple factual question receives a full pirate-speak response
+  including the required opening phrase, sea reference, pirate vocabulary, and closing phrase.
+context:
+  skills:
+    - ".lunit/fixtures/pirate-skill.md"
+prompt: "What is the capital of France?"
+assertions:
+  - type: no_error
+  - type: output_matches
+    pattern: "^(Ahoy|Arrr)"
+    flags: "i"
+  - type: output_contains
+    text: "Paris"
+    case_sensitive: false
+  - type: output_matches
+    pattern: "(Yo ho ho|Shiver me timbers|Sail on|Avast|Yo-ho-ho)"
+    flags: "i"
+  - type: semantic
+    criteria: >
+      The response should answer the question correctly (Paris is the capital of France)
+      while maintaining consistent pirate persona throughout. It should feel like a real
+      pirate is speaking — not just a few pirate words sprinkled in. The sea, ships,
+      treasure, or sailing should be referenced at least once.
+tags:
+  - generated
+  - happy-path
+  - pirate-mode
+  - character-consistency

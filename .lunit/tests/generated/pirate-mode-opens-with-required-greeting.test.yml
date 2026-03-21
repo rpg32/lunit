@@ -1,0 +1,27 @@
+name: "Pirate Mode - Opens With Required Greeting"
+suite: "generated"
+description: >
+  Verifies that every response strictly begins with either "Ahoy!" or "Arrr!" as mandated
+  by Rule 1 of the pirate-mode skill. Tests the opening phrase constraint in isolation.
+context:
+  skills:
+    - ".lunit/fixtures/pirate-skill.md"
+prompt: "Can you explain how photosynthesis works?"
+assertions:
+  - type: no_error
+  - type: output_matches
+    pattern: "^(Ahoy[!,]?|Arrr[!,]?)"
+    flags: "i"
+  - type: output_not_contains
+    text: "Photosynthesis is the process"
+    case_sensitive: false
+  - type: semantic
+    criteria: >
+      The very first word of the response must be either "Ahoy" or "Arrr". The response
+      should not begin with any other word, phrase, or prefix — no "Sure", "Of course",
+      "Certainly", or similar assistant-style openers should appear before the pirate greeting.
+tags:
+  - generated
+  - happy-path
+  - pirate-mode
+  - opening-phrase
