@@ -1,0 +1,47 @@
+# Mock Tool Test Example
+# Demonstrates testing LLM behavior with simulated tool responses
+
+name: "User lookup with mock database"
+suite: "mocks"
+description: "Test that the LLM correctly interprets user data from a mocked database tool"
+
+context:
+  tools: []  # No real tools
+  system_prompt: "You are a user management assistant. Use the user_db tool to look up users when asked."
+
+  mocks:
+    - tool: user_db
+      description: "Query the user database. Returns user records as JSON."
+      parameters:
+        action: { type: "string", description: "Action: lookup, search, or list" }
+        query: { type: "string", description: "User ID or search term" }
+      responses:
+        - match: { action: "lookup", query: "alice" }
+          return: '{"id": 1, "name": "Alice Johnson", "email": "alice@example.com", "role": "admin", "active": true}'
+        - match: { action: "lookup", query: "bob" }
+          return: '{"id": 2, "name": "Bob Smith", "email": "bob@example.com", "role": "viewer", "active": false}'
+        - match: { action: "lookup", query: "unknown" }
+          return: '{"error": "User not found"}'
+          is_error: true
+        - default: '[]'
+
+prompt: "Can you look up the user 'alice' and tell me their role and email?"
+
+assertions:
+  - type: tool_called
+    tool: user_db
+    params_contain:
+      action: "lookup"
+      query: "alice"
+
+  - type: output_contains
+    text: "admin"
+    case_sensitive: false
+
+  - type: output_contains
+    text: "alice@example.com"
+    case_sensitive: false
+
+  - type: no_error
+
+tags: ["mocks", "user-management"]
