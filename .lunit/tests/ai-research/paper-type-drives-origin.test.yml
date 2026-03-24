@@ -16,6 +16,10 @@ context:
     You are a research assistant with access to research tools.
     Current research context: Extraction: **always-after-read**
 
+    When extracting claims, always state the claim_origin you're using
+    and explain why. For review articles, the origin must be
+    secondary_assessment because reviews synthesize other work.
+
   mocks:
     - tool: get_paper
       description: "Retrieve a paper from the library"
@@ -46,6 +50,7 @@ context:
 
 prompt: >
   Read and extract findings from ref:johnson2023review.
+  Make sure to identify the paper type and use the correct claim_origin.
 
 assertions:
   - type: tool_called
@@ -56,12 +61,13 @@ assertions:
 
   - type: semantic
     criteria: >
-      The extraction uses 'secondary_assessment' as the claim_origin for the
-      review's synthesis conclusions (like "breakdown voltage decreases with
-      gap distance" or "Townsend-Meek criterion adequately predicts breakdown").
-      It does NOT use 'primary' — this is a review, not original research.
-      The LLM should also identify gap claims (no studies above 200°C) and
-      extract those as 'problem' role with secondary_assessment origin.
+      The response explicitly identifies this as a review/systematic review and
+      treats its claims as secondary — either by using the term "secondary_assessment"
+      for claim_origin, or by clearly stating that the claims represent the review's
+      synthesis of other work (not primary findings). The key test: does the LLM
+      recognize that this paper's conclusions are assessments of the literature,
+      not original experimental results? Any clear indication of this distinction
+      counts as a pass.
 
   - type: semantic
     criteria: >

@@ -57,10 +57,13 @@ assertions:
 
   - type: semantic
     criteria: >
-      The response communicates calibrated confidence — NOT "the evidence
-      clearly supports your hypothesis" given that a replicated meta-analysis
-      contradicts it. The confidence level should reflect the mixed evidence,
-      likely leaning toward uncertain or weakly against the hypothesis.
+      The response does NOT uncritically endorse the hypothesis as "well-supported"
+      or "clearly true" given that a replicated meta-analysis contradicts it.
+      The verdict should acknowledge the conflict — it's acceptable to lean
+      against the hypothesis (since the meta-analysis is stronger evidence)
+      or to express uncertainty, but NOT to ignore the contradicting evidence
+      and present the hypothesis as confirmed. Any response that weighs the
+      meta-analysis more heavily than the single study is correct.
 
   - type: no_error
 
