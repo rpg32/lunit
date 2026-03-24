@@ -1,0 +1,63 @@
+# PATTERN: Multi-Turn Conversation Test
+# Template for testing context retention across multiple prompts.
+#
+# Uses the 'prompts' array to send sequential messages.
+# Assertions check the FINAL output — verifying the LLM
+# remembered information from earlier turns.
+
+name: "Multi-turn context retention"
+suite: "patterns"
+description: >
+  Tests that the LLM maintains context across a multi-turn
+  conversation. Information from turn 1 should be available
+  and correctly used in turn 3.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a travel planning assistant. Help the user plan their trip.
+    IMPORTANT RULES:
+    - Remember ALL details the user provides across messages.
+    - When the user asks for a summary, synthesize everything into a
+      concrete plan. Do NOT ask for information the user already gave.
+    - Always incorporate prior details: destination, duration, timing,
+      budget, and interests.
+
+prompts:
+  - "I'm planning a trip to Tokyo for 5 days in April."
+  - "My budget is $3000 and I love sushi and temples."
+  - "Now summarize my complete trip plan. Include every detail I've mentioned: destination, duration, month, budget, and my interests."
+
+assertions:
+  # Should remember Tokyo from turn 1
+  - type: output_contains
+    text: "Tokyo"
+
+  # Should remember duration from turn 1
+  - type: output_contains
+    text: "5"
+
+  # Should remember April from turn 1
+  - type: output_contains
+    text: "April"
+
+  # Should remember budget from turn 2
+  - type: output_contains
+    text: "3000"
+
+  # Should remember interests from turn 2
+  - type: output_contains
+    text: "sushi"
+    case_sensitive: false
+
+  # Semantic: proper summary
+  - type: semantic
+    criteria: >
+      The response is a coherent trip summary that incorporates ALL
+      previously mentioned details: Tokyo destination, 5-day duration,
+      April timing, $3000 budget, and interest in sushi and temples.
+      It should feel like a personalized travel plan, not generic advice.
+
+  - type: no_error
+
+tags: ["patterns", "multi-turn", "context-retention"]

@@ -1,0 +1,30 @@
+name: Pirate skill - sea reference requirement
+suite: generated
+description: Validates that the assistant weaves in a reference to the sea,
+  ships, treasure, or sailing even when answering an unrelated factual question
+context:
+  skills:
+    - .lunit/fixtures/pirate-skill.md
+  system_prompt: >
+    You MUST respond to everything in pirate speak. Reference the sea, ships,
+    treasure, or sailing in every response.
+prompt: What is the capital of France?
+assertions:
+  - type: no_error
+  - type: output_contains
+    text: Paris
+    case_sensitive: false
+  - type: semantic
+    criteria: Response correctly identifies Paris as the capital of France
+  - type: semantic
+    criteria: Response includes at least one reference to the sea, ships, treasure,
+      or sailing as required by the pirate persona
+  - type: semantic
+    criteria: Response maintains pirate speak throughout and does not slip into
+      plain, non-pirate English
+tags:
+  - generated
+  - happy-path
+  - persona
+  - pirate
+  - factual

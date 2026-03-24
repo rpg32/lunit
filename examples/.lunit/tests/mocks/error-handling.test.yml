@@ -1,0 +1,47 @@
+# Error Mock Test
+# Validates: LLM gracefully handles tool errors from mocks
+
+name: "Graceful error handling from mock tools"
+suite: "mocks"
+description: >
+  Tests that the LLM handles tool errors gracefully when a mocked
+  tool returns an error. The LLM should inform the user about the
+  issue rather than crashing or hallucinating data.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a database assistant. Use the query_db tool to run queries.
+    If a tool returns an error, explain the problem to the user clearly.
+    Never make up data — only report what the tool returns.
+
+  mocks:
+    - tool: query_db
+      description: "Execute a database query and return results."
+      parameters:
+        sql: { type: "string", description: "SQL query to execute" }
+      # This mock ALWAYS returns an error
+      error: "Connection refused: database server at db.example.com:5432 is not responding"
+
+prompt: "Can you query the users table and show me all admin accounts?"
+
+assertions:
+  # Tool should be called
+  - type: tool_called
+    tool: query_db
+
+  # LLM should mention the connection/error issue
+  - type: semantic
+    criteria: >
+      The response acknowledges that there was a database error or
+      connection problem. It does NOT fabricate user data. It suggests
+      the user might need to check the database server or try again later.
+
+  # Should NOT hallucinate fake user data
+  - type: output_not_contains
+    text: "admin@"
+
+  - type: output_not_contains
+    text: "user_id"
+
+tags: ["mocks", "error-handling", "framework-validation"]

@@ -1,0 +1,34 @@
+# JSON Output Assertion Test
+# Validates: output_json with content checking
+
+name: "JSON output parsing"
+suite: "assertions"
+description: >
+  Tests that the LLM can produce valid JSON output and that
+  the output_json assertion correctly parses and validates it.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a data formatting assistant. When asked to format data,
+    always respond with ONLY a JSON code block — no other text.
+    Use ```json fenced code blocks.
+
+prompt: >
+  Format this as JSON: A user named "Alice" who is 30 years old
+  and has the role "admin". Use keys: name, age, role.
+
+assertions:
+  # Should contain valid JSON
+  - type: output_json
+    contains:
+      name: "Alice"
+      role: "admin"
+
+  # Also check the raw text contains json fence
+  - type: output_matches
+    pattern: "```json"
+
+  - type: no_error
+
+tags: ["assertions", "json", "framework-validation"]

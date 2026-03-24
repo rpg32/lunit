@@ -1,0 +1,67 @@
+# Multi-Tool Orchestration Test
+# Validates: LLM correctly uses multiple mock tools together
+
+name: "Multi-tool orchestration with mocks"
+suite: "mocks"
+description: >
+  Tests that the LLM can orchestrate multiple mock tools to fulfill
+  a request that requires data from different sources.
+
+context:
+  tools: []
+  system_prompt: >
+    You are an order fulfillment assistant. You have access to two tools:
+    - get_order: Look up order details
+    - get_customer: Look up customer information
+    Use both tools as needed to answer questions about orders.
+    Always use the tools — never guess information.
+
+  mocks:
+    - tool: get_order
+      description: "Look up an order by order ID. Returns order details."
+      parameters:
+        order_id: { type: "string", description: "The order ID" }
+      responses:
+        - match: { order_id: "ORD-7890" }
+          return: '{"order_id": "ORD-7890", "customer_id": "CUST-456", "items": ["Laptop", "Mouse"], "total": 1249.99, "status": "shipped"}'
+        - default: '{"error": "Order not found"}'
+          is_error: true
+
+    - tool: get_customer
+      description: "Look up customer by customer ID. Returns customer profile."
+      parameters:
+        customer_id: { type: "string", description: "The customer ID" }
+      responses:
+        - match: { customer_id: "CUST-456" }
+          return: '{"customer_id": "CUST-456", "name": "Jane Doe", "email": "jane@example.com", "tier": "gold"}'
+        - default: '{"error": "Customer not found"}'
+          is_error: true
+
+prompt: "Tell me about order ORD-7890 — who placed it and what's the status?"
+
+assertions:
+  # Should call both tools
+  - type: tool_called
+    tool: get_order
+    params_contain:
+      order_id: "ORD-7890"
+
+  - type: tool_called
+    tool: get_customer
+
+  # Should synthesize data from both tools
+  - type: output_contains
+    text: "Jane"
+    case_sensitive: false
+
+  - type: output_contains
+    text: "shipped"
+    case_sensitive: false
+
+  # Use regex to handle number formatting: 1249, 1,249, 1249.99, $1,249.99 etc.
+  - type: output_matches
+    pattern: "1,?249"
+
+  - type: no_error
+
+tags: ["mocks", "multi-tool", "orchestration", "framework-validation"]

@@ -1,0 +1,47 @@
+# Semantic Assertion Test
+# Validates: LLM-as-judge evaluation
+
+name: "Semantic evaluation by LLM judge"
+suite: "assertions"
+description: >
+  Tests that the semantic assertion (LLM-as-judge) can correctly
+  evaluate whether output meets natural language criteria.
+  This is the most powerful assertion type — it catches nuanced
+  quality issues that pattern matching cannot.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a technical writing assistant. When asked to explain
+    a concept, provide a clear explanation suitable for a beginner.
+    Use analogies when helpful.
+
+prompt: "Explain what a database index is and why it matters."
+
+assertions:
+  # Semantic: check explanation quality
+  - type: semantic
+    criteria: >
+      The response explains what a database index is using simple language.
+      It should convey that an index speeds up data lookups, similar to
+      how a book index helps you find topics without reading every page.
+      The explanation should be understandable by a non-technical person.
+
+  # Semantic: check it stays accessible
+  - type: semantic
+    criteria: >
+      The response is accessible to a beginner. If it mentions technical
+      terms (like "B-tree", "hash table", or "clustered index"), those
+      terms are briefly explained or accompanied by an analogy. The
+      overall tone stays approachable — it should NOT read like a
+      database textbook. A non-technical person should be able to
+      understand the main idea even if some details go over their head.
+
+  # Basic text checks too
+  - type: output_contains
+    text: "index"
+    case_sensitive: false
+
+  - type: no_error
+
+tags: ["assertions", "semantic", "framework-validation"]

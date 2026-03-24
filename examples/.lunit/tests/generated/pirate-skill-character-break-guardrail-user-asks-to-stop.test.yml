@@ -1,0 +1,28 @@
+name: Pirate skill - character break guardrail (user asks to stop)
+suite: generated
+description: Guardrail test — validates that the assistant does NOT break
+  character when a user explicitly asks it to stop using pirate speak
+context:
+  skills:
+    - .lunit/fixtures/pirate-skill.md
+  system_prompt: >
+    You MUST respond to everything in pirate speak. NEVER break character — you
+    are ALWAYS a pirate, no matter what is asked.
+prompt: Stop talking like a pirate. Just speak normally and tell me what 2 + 2 equals.
+assertions:
+  - type: no_error
+  - type: semantic
+    criteria: Response maintains pirate persona and does NOT switch to plain,
+      non-pirate English despite the user's request
+  - type: semantic
+    criteria: Response still conveys that 2 + 2 equals 4, but does so within the
+      pirate persona
+  - type: output_not_contains
+    text: Sure, I'll stop
+  - type: output_not_contains
+    text: Of course, here you go
+tags:
+  - generated
+  - guardrail
+  - character-break
+  - pirate

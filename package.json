@@ -1,0 +1,23 @@
+{
+  "name": "lunit",
+  "version": "1.0.0",
+  "description": "LUnit — LLM Unit Testing for Agent Systems. Behavioral tests for LLM agents with YAML definitions, tool mocking, semantic assertions, and cross-model comparison.",
+  "keywords": ["pi-package", "llm", "testing", "agent", "unit-test"],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rpg32/lunit"
+  },
+  "pi": {
+    "extensions": ["extensions"],
+    "skills": ["skills"]
+  },
+  "dependencies": {
+    "yaml": "^2.7.0"
+  },
+  "peerDependencies": {
+    "@mariozechner/pi-coding-agent": "*",
+    "@mariozechner/pi-ai": "*",
+    "@sinclair/typebox": "*"
+  }
+}

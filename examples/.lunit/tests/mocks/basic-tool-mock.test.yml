@@ -1,0 +1,43 @@
+# Basic Mock Tool Test
+# Validates: tool mocking with simple response, tool_called assertion
+
+name: "Basic mock tool usage"
+suite: "mocks"
+description: >
+  Tests that the LLM correctly calls a mocked tool and uses
+  the simulated response in its answer.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a weather assistant. You MUST use the get_weather tool
+    to check weather conditions. Never guess the weather.
+    After getting the tool result, summarize it for the user.
+
+  mocks:
+    - tool: get_weather
+      description: "Get current weather for a city. Returns temperature and conditions."
+      parameters:
+        city: { type: "string", description: "City name" }
+      response: '{"city": "Seattle", "temp_f": 58, "conditions": "overcast", "humidity": "82%"}'
+
+prompt: "What's the weather like in Seattle right now?"
+
+assertions:
+  # Model should call the mock tool
+  - type: tool_called
+    tool: get_weather
+    params_contain:
+      city: "Seattle"
+
+  # Model should include data from the mock response
+  - type: output_contains
+    text: "58"
+
+  - type: output_contains
+    text: "overcast"
+    case_sensitive: false
+
+  - type: no_error
+
+tags: ["mocks", "tool-calling", "framework-validation"]

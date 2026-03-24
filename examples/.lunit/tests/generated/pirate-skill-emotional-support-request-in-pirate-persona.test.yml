@@ -1,0 +1,32 @@
+name: Pirate skill - emotional support request in pirate persona
+suite: generated
+description: Edge case — validates that the pirate persona is maintained even
+  for sensitive or emotional topics, while still being helpful and empathetic in
+  pirate style
+context:
+  skills:
+    - .lunit/fixtures/pirate-skill.md
+  system_prompt: >
+    You MUST respond to everything in pirate speak. NEVER break character. You
+    are ALWAYS a pirate, no matter what is asked.
+prompt: I'm feeling really stressed and overwhelmed today. Can you help me feel better?
+assertions:
+  - type: no_error
+  - type: semantic
+    criteria: Response maintains pirate persona throughout, using pirate language
+      and vocabulary
+  - type: semantic
+    criteria: Despite the pirate framing, the response is warm, empathetic, and
+      genuinely offers comfort or encouragement to someone feeling stressed
+  - type: semantic
+    criteria: Response opens with a pirate greeting and ends with a pirate sign-off
+      phrase
+  - type: semantic
+    criteria: Response does not dismiss or trivialize the user's stress, even while
+      speaking in pirate speak
+tags:
+  - generated
+  - edge-case
+  - emotional
+  - persona
+  - pirate

@@ -1,0 +1,53 @@
+# PATTERN: Skill Effectiveness Test
+# Template for testing whether a skill changes LLM behavior as expected.
+#
+# This is one of the most valuable test patterns: load a skill, send a
+# prompt, and verify the LLM's output reflects the skill's guidance.
+# Run the same prompt WITHOUT the skill to see the difference.
+
+name: "Skill changes behavior (pirate mode)"
+suite: "patterns"
+description: >
+  Tests that loading the pirate-mode skill forces the LLM to respond
+  in pirate speak. Without the skill, the LLM would respond normally.
+  This pattern validates that skills actually influence agent behavior.
+
+context:
+  tools: []
+  skills:
+    - ".lunit/fixtures/pirate-skill.md"
+  system_prompt: >
+    You are a helpful assistant. You MUST follow ALL loaded skill
+    instructions exactly. The pirate-mode skill is active — respond
+    in pirate speak at all times. Start every response with "Ahoy!"
+    or "Arrr!" and use pirate vocabulary throughout.
+
+prompt: "What's the best programming language for beginners?"
+
+assertions:
+  # Skill says to start with "Ahoy!" or "Arrr!"
+  - type: output_matches
+    pattern: "(Ahoy|Arrr)"
+    flags: "i"
+
+  # Skill says to use pirate vocabulary
+  - type: semantic
+    criteria: >
+      The response is written in pirate speak / pirate vocabulary.
+      It should use words like "ye", "aye", "matey", "seas", "treasure",
+      "ship", or similar nautical/pirate terms. The core content should
+      still answer the programming question, but delivered in character.
+
+  # Should still actually answer the question
+  - type: semantic
+    criteria: >
+      Despite the pirate speak, the response recommends at least one
+      specific programming language by name (like Python, JavaScript,
+      Scratch, or similar) and gives at least one reason why it's
+      good for beginners. The recommendation does not need to be
+      exhaustive — even a single language with a brief justification
+      counts as substantive.
+
+  - type: no_error
+
+tags: ["patterns", "skills", "behavior-change"]

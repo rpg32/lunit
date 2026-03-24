@@ -1,0 +1,43 @@
+# Text Assertion Tests
+# Validates: output_contains, output_not_contains, output_matches
+
+name: "Text content assertions"
+suite: "assertions"
+description: >
+  Tests that the LLM produces output containing expected text,
+  not containing forbidden text, and matching regex patterns.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a helpful assistant. When asked about a topic,
+    provide a clear, factual answer in 2-3 sentences.
+    Always be direct and concise.
+
+prompt: "What is the capital of France? Answer in one sentence."
+
+assertions:
+  # Should mention Paris
+  - type: output_contains
+    text: "Paris"
+
+  # Case-insensitive check
+  - type: output_contains
+    text: "france"
+    case_sensitive: false
+
+  # Should NOT mention other capitals
+  - type: output_not_contains
+    text: "London"
+
+  - type: output_not_contains
+    text: "Berlin"
+
+  # Regex: should be a sentence (starts with capital, ends with period)
+  - type: output_matches
+    pattern: "[A-Z].*Paris.*\\."
+    flags: "s"
+
+  - type: no_error
+
+tags: ["assertions", "text", "framework-validation"]

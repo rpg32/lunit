@@ -1,0 +1,81 @@
+# PATTERN: Data Interpretation Test
+# Template for testing how the LLM interprets and presents data
+# from tool responses. Uses mocks to provide controlled data.
+#
+# This pattern is essential for agent systems that fetch data from
+# APIs/databases and need to present it accurately to users.
+
+name: "Data interpretation and presentation"
+suite: "patterns"
+description: >
+  Tests that the LLM correctly interprets structured data from a
+  tool and presents it accurately. Verifies no hallucination of
+  data not present in the tool response.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a sales analytics assistant. Use the get_sales_report tool
+    to fetch data. Present the data accurately — never add numbers or
+    facts that aren't in the tool response. If asked to calculate,
+    show your work.
+
+  mocks:
+    - tool: get_sales_report
+      description: "Fetch sales report for a given quarter."
+      parameters:
+        quarter: { type: "string", description: "Quarter (e.g. Q1-2024)" }
+        region: { type: "string", description: "Region name" }
+      responses:
+        - match: { quarter: "Q4-2024" }
+          return: >
+            {"quarter": "Q4-2024", "region": "West",
+             "revenue": 1250000, "units_sold": 8400,
+             "top_product": "Widget Pro",
+             "growth_vs_prev_quarter": 12.5,
+             "deals_closed": 156}
+        - default: '{"error": "No data for that quarter"}'
+          is_error: true
+
+prompt: >
+  Show me the Q4 2024 sales report for the West region.
+  What was the average revenue per deal?
+
+assertions:
+  - type: tool_called
+    tool: get_sales_report
+
+  # Should include the exact revenue figure
+  - type: output_contains
+    text: "1,250,000"
+
+  # OR without commas
+  - type: output_matches
+    pattern: "1[,.]?250[,.]?000"
+
+  # Should mention the top product
+  - type: output_contains
+    text: "Widget Pro"
+
+  # Should calculate average revenue per deal: 1250000/156 ≈ 8012.82
+  - type: output_matches
+    pattern: "8[,.]?01[0-9]"
+
+  # Should NOT hallucinate data from other quarters
+  - type: output_not_contains
+    text: "Q3"
+
+  - type: semantic
+    criteria: >
+      The response accurately presents the Q4-2024 West region sales data.
+      The mock response contains: revenue ($1,250,000), units sold (8,400),
+      top product (Widget Pro), growth vs previous quarter (12.5%), and
+      deals closed (156). All of these data points are legitimate.
+      The average revenue per deal should be approximately $8,012-$8,013
+      (1,250,000 / 156). The response should NOT invent data points that
+      were not in the tool response (e.g., individual rep names, specific
+      product breakdowns, or data from other quarters).
+
+  - type: no_error
+
+tags: ["patterns", "data", "accuracy", "no-hallucination"]

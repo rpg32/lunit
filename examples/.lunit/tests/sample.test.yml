@@ -1,0 +1,39 @@
+# Sample LUnit Test
+# Verifies basic LLM response behavior
+
+name: "Basic greeting response"
+suite: "smoke"
+description: "Verify the LLM responds appropriately to a simple greeting"
+
+# Context setup
+context:
+  tools: []  # No built-in tools needed
+  system_prompt: "You are a helpful assistant. Be concise and friendly."
+
+  # Mock tools example (uncomment to try):
+  # mocks:
+  #   - tool: get_user
+  #     description: "Look up a user by ID"
+  #     parameters:
+  #       user_id: { type: "string", description: "The user's ID" }
+  #     responses:
+  #       - match: { user_id: "123" }
+  #         return: '{"id": "123", "name": "Alice", "role": "admin"}'
+  #       - match: { user_id: "999" }
+  #         return: '{"error": "user not found"}'
+  #         is_error: true
+  #       - default: '{"id": "0", "name": "Unknown"}'
+
+# The prompt to send
+prompt: "Hello! How are you doing today?"
+
+# Assertions to verify
+assertions:
+  # Accept any common greeting — not just "hello"
+  - type: output_matches
+    pattern: "(hello|hi|hey|greetings|good)"
+    flags: "i"
+
+  - type: no_error
+
+tags: ["smoke", "basic"]

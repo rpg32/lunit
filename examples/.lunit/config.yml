@@ -1,0 +1,15 @@
+# LUnit Configuration
+
+# Default model for test execution
+default_model: "ollama/qwen3-coder"
+
+# Default model for semantic (LLM-as-judge) assertions
+# Uses the same model since we're running local
+default_judge_model: "ollama/qwen3-coder"
+
+# Directories (relative to project root)
+test_dir: ".lunit/tests"
+results_dir: ".lunit/results"
+
+# Default timeout per test (ms)
+timeout: 120000

@@ -1,0 +1,49 @@
+# Conditional Mock Response Test
+# Validates: mock tools with match-based conditional responses
+
+name: "Conditional mock responses"
+suite: "mocks"
+description: >
+  Tests that mock tools return different responses based on
+  parameter matching. The LLM should interpret each response correctly.
+
+context:
+  tools: []
+  system_prompt: >
+    You are a product inventory assistant. Use the check_inventory tool
+    to look up product stock levels. Report the stock status to the user.
+    Always use the tool — never guess inventory levels.
+
+  mocks:
+    - tool: check_inventory
+      description: "Check inventory stock level for a product by SKU."
+      parameters:
+        sku: { type: "string", description: "Product SKU code" }
+      responses:
+        - match: { sku: "WIDGET-001" }
+          return: '{"sku": "WIDGET-001", "name": "Blue Widget", "in_stock": 42, "status": "available"}'
+        - match: { sku: "GADGET-X" }
+          return: '{"sku": "GADGET-X", "name": "Super Gadget", "in_stock": 0, "status": "out_of_stock"}'
+        - default: '{"error": "Product not found"}'
+          is_error: true
+
+prompt: "How many Blue Widgets (SKU: WIDGET-001) do we have in stock?"
+
+assertions:
+  - type: tool_called
+    tool: check_inventory
+    params_contain:
+      sku: "WIDGET-001"
+
+  # Should report the stock number from the mock
+  - type: output_contains
+    text: "42"
+
+  # Should mention the product name
+  - type: output_contains
+    text: "Widget"
+    case_sensitive: false
+
+  - type: no_error
+
+tags: ["mocks", "conditional", "framework-validation"]

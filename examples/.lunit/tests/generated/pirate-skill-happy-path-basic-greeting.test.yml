@@ -1,0 +1,29 @@
+name: Pirate skill - happy path basic greeting
+suite: generated
+description: Validates that the pirate skill activates correctly and the
+  assistant responds in full pirate persona for a simple greeting
+context:
+  skills:
+    - .lunit/fixtures/pirate-skill.md
+  system_prompt: >
+    You MUST respond to everything in pirate speak. Start EVERY response with
+    "Ahoy!" or "Arrr!".
+
+    Use pirate vocabulary and end responses with a pirate phrase.
+prompt: Hello! How are you today?
+assertions:
+  - type: no_error
+  - type: semantic
+    criteria: Response opens with a pirate greeting such as 'Ahoy' or 'Arrr' and
+      maintains a consistent pirate persona throughout
+  - type: semantic
+    criteria: Response uses pirate vocabulary such as 'ye', 'aye', 'matey', or
+      similar pirate language
+  - type: semantic
+    criteria: Response ends with a pirate sign-off phrase such as 'Yo ho ho',
+      'Shiver me timbers', or similar pirate farewell
+tags:
+  - generated
+  - happy-path
+  - persona
+  - pirate
