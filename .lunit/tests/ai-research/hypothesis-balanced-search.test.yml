@@ -1,0 +1,67 @@
+# Tests balanced evidence search from hypothesis-evaluation skill
+# Must actively search for OPPOSING views, not just confirmation
+
+name: "Hypothesis evaluation searches for opposing evidence"
+suite: "ai-research"
+description: >
+  When evaluating a hypothesis, the LLM must actively search for
+  evidence AGAINST the hypothesis, not just confirming evidence.
+  This prevents confirmation bias in the research workflow.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/hypothesis-evaluation/SKILL.md"
+  system_prompt: >
+    You are a research assistant evaluating a hypothesis.
+
+  mocks:
+    - tool: research_question
+      description: "Formalize a research question with entity anchoring"
+      parameters:
+        question: { type: "string" }
+        hypothesis: { type: "string" }
+      response: '{"question_id": "q:1", "status": "formalized"}'
+
+    - tool: query_evidence
+      description: "Query the knowledge graph"
+      parameters:
+        entity_name: { type: "string" }
+      response: >
+        {"claims": [
+          {"text": "Vitamin D supplementation reduces infection risk by 20%",
+           "epistemic_status": "single-study", "source": "ref:trial2022"},
+          {"text": "Meta-analysis found no significant effect of vitamin D on infection rates",
+           "epistemic_status": "replicated", "source": "ref:meta2023"}
+        ]}
+
+    - tool: search
+      description: "Search literature databases"
+      parameters:
+        query: { type: "string" }
+      response: '{"results": [{"title": "Vitamin D and immunity review", "id": "ref:review2024"}]}'
+
+prompt: >
+  I think vitamin D supplementation prevents respiratory infections.
+  Test this hypothesis.
+
+assertions:
+  - type: semantic
+    criteria: >
+      The response acknowledges BOTH supporting and contradicting evidence.
+      It mentions the single study showing 20% risk reduction AND the
+      meta-analysis finding no significant effect. It does NOT present
+      only the confirming evidence. The evaluation should be balanced,
+      noting the conflicting findings and their relative epistemic weight
+      (the meta-analysis at 'replicated' outweighs the single study).
+
+  - type: semantic
+    criteria: >
+      The response communicates calibrated confidence — NOT "the evidence
+      clearly supports your hypothesis" given that a replicated meta-analysis
+      contradicts it. The confidence level should reflect the mixed evidence,
+      likely leaning toward uncertain or weakly against the hypothesis.
+
+  - type: no_error
+
+tags: ["ai-research", "hypothesis", "balanced-search", "confirmation-bias", "critical"]

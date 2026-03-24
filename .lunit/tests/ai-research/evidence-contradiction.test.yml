@@ -1,0 +1,61 @@
+# Tests that contradicting evidence is linked correctly
+# When papers disagree, the evidence relation should be "contradicts"
+
+name: "Evidence linking uses contradicts for opposing findings"
+suite: "ai-research"
+description: >
+  When two papers report opposing findings, the evidence link between
+  them should use the 'contradicts' relation. The LLM should not
+  soften this to 'supports' or skip linking contradictions.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/evidence-linking/SKILL.md"
+  system_prompt: >
+    You are a research assistant linking evidence in the knowledge graph.
+    You have just extracted claims from two papers that report opposing results.
+
+  mocks:
+    - tool: query_evidence
+      description: "Query existing claims"
+      parameters:
+        entity_name: { type: "string" }
+      response: >
+        {"claims": [
+          {"id": "c:100", "text": "Treatment X reduces symptom severity by 40%",
+           "source": "ref:positive2022", "epistemic_status": "single-study",
+           "role": "result"},
+          {"id": "c:200", "text": "Treatment X shows no significant effect on symptom severity (p=0.42)",
+           "source": "ref:negative2023", "epistemic_status": "single-study",
+           "role": "result"}
+        ]}
+
+    - tool: add_evidence
+      description: "Create an evidence link between two claims"
+      parameters:
+        from_claim_id: { type: "string" }
+        to_claim_id: { type: "string" }
+        relation: { type: "string", description: "supports, contradicts, replicates, etc." }
+        strength: { type: "string" }
+      response: '{"link_id": "ev:1", "status": "created"}'
+
+prompt: >
+  These two claims about Treatment X seem to disagree. Can you link them
+  with the appropriate evidence relationship?
+
+assertions:
+  - type: tool_called
+    tool: add_evidence
+
+  - type: semantic
+    criteria: >
+      The evidence link uses the 'contradicts' relation (not 'supports' or
+      'qualifies'). One paper reports 40% reduction while the other finds
+      no significant effect — this is a direct contradiction. The LLM should
+      not soften this relationship or avoid creating the link because it's
+      a disagreement.
+
+  - type: no_error
+
+tags: ["ai-research", "evidence-linking", "contradicts", "critical"]

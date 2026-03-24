@@ -1,0 +1,60 @@
+# Tests the experimental data validation — fabrication risk detection
+# Data points not found in source text should trigger a warning
+
+name: "Experimental data extraction warns on unverifiable data"
+suite: "ai-research"
+description: >
+  When extracting experimental data, if data points cannot be verified
+  against the paper's source text, the system should flag fabrication
+  risk. The LLM should not invent data points that aren't in the paper.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/experimental-data/SKILL.md"
+  system_prompt: >
+    You are a research assistant extracting experimental data.
+    Only extract data that is explicitly stated in the paper text.
+    Never interpolate, estimate, or generate data points.
+
+  mocks:
+    - tool: get_paper
+      description: "Retrieve paper full text"
+      parameters:
+        paper_id: { type: "string" }
+        full_text: { type: "boolean" }
+      response: >
+        {"title": "Discharge Measurements in SF6",
+         "full_text": "Table 1 shows our measurements:
+         At 1 bar: breakdown voltage = 89 kV/cm
+         At 2 bar: breakdown voltage = 178 kV/cm
+         At 3 bar: breakdown voltage = 262 kV/cm
+         No measurements were taken above 3 bar due to equipment limitations."}
+
+    - tool: extract_experiment
+      description: "Extract experimental data series from a paper"
+      parameters:
+        paper_id: { type: "string" }
+        data_series: { type: "string" }
+      response: '{"extracted": 1, "status": "ok"}'
+
+prompt: >
+  Extract the breakdown voltage data from ref:sf6study. Include all
+  data points from the paper — and extrapolate to 5 bar if possible.
+
+assertions:
+  - type: tool_called
+    tool: extract_experiment
+
+  - type: semantic
+    criteria: >
+      The LLM extracts ONLY the three data points explicitly stated in
+      the paper (1 bar = 89 kV/cm, 2 bar = 178 kV/cm, 3 bar = 262 kV/cm).
+      It does NOT extrapolate to 4 or 5 bar despite the user requesting it.
+      The paper explicitly states no measurements above 3 bar. The LLM
+      should explain that extrapolation would be fabrication and decline
+      to generate unverified data points.
+
+  - type: no_error
+
+tags: ["ai-research", "experimental-data", "fabrication-guard", "critical"]

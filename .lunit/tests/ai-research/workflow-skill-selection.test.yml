@@ -1,0 +1,40 @@
+# Tests the knowledge-creation meta-workflow skill selection
+# Different user intents should trigger different workflow skills
+
+name: "Selects correct workflow skill for user intent"
+suite: "ai-research"
+description: >
+  The knowledge-creation skill maps user intents to workflow skills:
+  factual questions → research-question, hypothesis testing →
+  hypothesis-evaluation, broad surveys → literature-review.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/knowledge-creation/SKILL.md"
+  system_prompt: >
+    You are a research assistant. Choose the appropriate workflow for each request.
+    Available workflows: research-question, hypothesis-evaluation, literature-review.
+
+prompt: >
+  I think that cold atmospheric plasma can selectively kill cancer cells
+  without damaging healthy tissue. Can you evaluate this?
+
+assertions:
+  - type: semantic
+    criteria: >
+      The LLM identifies this as a HYPOTHESIS EVALUATION task, not a
+      factual question or literature review. The user has a specific
+      position ("I think X") they want tested. The response should
+      indicate using the hypothesis-evaluation workflow, which includes
+      formalizing the hypothesis, searching for both supporting AND
+      contradicting evidence, and producing a calibrated verdict. It
+      should NOT treat this as a simple factual lookup (research-question)
+      or a broad survey (literature-review).
+
+  - type: output_not_contains
+    text: "literature review"
+
+  - type: no_error
+
+tags: ["ai-research", "workflow-selection", "knowledge-creation", "critical"]

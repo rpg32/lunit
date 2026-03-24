@@ -1,0 +1,56 @@
+# Tests the KG-first protocol from research-question skill
+# ALWAYS check the knowledge graph before searching literature
+
+name: "KG-first protocol — checks graph before searching"
+suite: "ai-research"
+description: >
+  The research-question skill mandates checking the knowledge graph FIRST
+  before searching external literature. This prevents redundant searches
+  and ensures existing knowledge is surfaced.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/research-question/SKILL.md"
+  system_prompt: >
+    You are a research assistant with access to a knowledge graph and search tools.
+
+  mocks:
+    - tool: query_evidence
+      description: "Query the knowledge graph for existing claims and evidence"
+      parameters:
+        entity_name: { type: "string", description: "Entity or topic to search" }
+      response: >
+        {"claims": [
+          {"id": "c:1", "text": "Breakdown voltage in mineral oil decreases with temperature",
+           "source": "ref:chen2024", "epistemic_status": "single-study"},
+          {"id": "c:2", "text": "Townsend-Meek criterion predicts onset in gaps under 5mm",
+           "source": "ref:davis2019", "epistemic_status": "replicated"}
+        ], "entities": ["mineral oil", "breakdown voltage", "Townsend-Meek criterion"]}
+
+    - tool: search
+      description: "Search external literature databases"
+      parameters:
+        query: { type: "string", description: "Search query" }
+      response: '{"results": [{"title": "New findings...", "id": "ref:new2024"}]}'
+
+prompt: >
+  What do we know about electrical breakdown in mineral oil?
+
+assertions:
+  # Must query the KG FIRST
+  - type: tool_called
+    tool: query_evidence
+
+  - type: semantic
+    criteria: >
+      The LLM checks the knowledge graph BEFORE searching external literature.
+      It reports what the graph already knows (existing claims about breakdown
+      voltage and the Townsend-Meek criterion) with citations. Only after
+      reporting existing knowledge does it identify gaps and optionally
+      suggest searching for more. The KG content should be presented as
+      the primary answer, not as a prelude to a literature search.
+
+  - type: no_error
+
+tags: ["ai-research", "kg-first", "research-question", "critical"]
