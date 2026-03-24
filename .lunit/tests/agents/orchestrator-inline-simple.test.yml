@@ -1,0 +1,66 @@
+# Tests the counterpart: simple tasks should NOT be delegated
+# "Quick edits, typo fixes, small config changes — just do it"
+
+name: "Orchestrator handles simple tasks inline"
+suite: "agents"
+description: >
+  Tests that the orchestrator does simple tasks directly without
+  unnecessary delegation. A one-line fix should be done inline.
+
+context:
+  tools: []
+  agents_md: |
+    You are an orchestrator. For every non-trivial request:
+    1. Classify — What kind of work is this?
+    2. Evaluate — Can this be done correctly in 1-2 tool calls? If yes, do it inline. If no, delegate.
+
+    When NOT to delegate:
+    - Quick edits, typo fixes, small config changes — just do it
+    - When the user's conversation context IS the context needed
+    - Follow-up adjustments to work already done
+
+    Available tools: subagent, edit, read
+
+  mocks:
+    - tool: subagent
+      description: "Delegate tasks to subagents"
+      parameters:
+        agent: { type: "string" }
+        task: { type: "string" }
+      response: '{"status": "delegated"}'
+
+    - tool: edit
+      description: "Edit a file by replacing text"
+      parameters:
+        path: { type: "string", description: "File path" }
+        oldText: { type: "string", description: "Text to find" }
+        newText: { type: "string", description: "Replacement text" }
+      response: "Successfully edited file"
+
+    - tool: read
+      description: "Read a file"
+      parameters:
+        path: { type: "string", description: "File path" }
+      response: |
+        const greeting = "Helo, world!";
+        console.log(greeting);
+
+prompt: >
+  There's a typo in src/index.ts — "Helo" should be "Hello". Can you fix it?
+
+assertions:
+  # Should NOT delegate a simple typo fix
+  - type: tool_not_called
+    tool: subagent
+
+  # Should use edit or read directly
+  - type: semantic
+    criteria: >
+      The LLM handles this simple typo fix directly rather than
+      delegating to a subagent. It either uses the edit tool to
+      make the change or explains the fix inline. It does NOT
+      say "let me delegate this" or call the subagent tool.
+
+  - type: no_error
+
+tags: ["agents", "inline", "orchestrator", "AGENTS.md"]

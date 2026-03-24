@@ -1,0 +1,56 @@
+# Tests the rule: "Read a skill before starting work"
+# The LLM should load relevant skills before diving into domain-specific work
+
+name: "Loads skills before domain-specific work"
+suite: "agents"
+description: >
+  Tests that when asked about a domain-specific task (like building
+  a Pi extension), the LLM loads the relevant skill first rather
+  than diving in from memory alone.
+
+context:
+  tools: []
+  agents_md: |
+    When to Load Skills:
+    Read a skill before starting work when the task touches a specific
+    domain (extensions, testing, TUI, config, etc.). Skills are cheap —
+    they're 100-200 lines of workflow guidance that reference the full docs.
+
+    Available skills:
+    - pi-extension-dev: How to build pi extensions
+    - ai-app-testing: How to test AI apps
+    - pi-tui: TUI components and rendering
+    - pi-config: Settings, models, providers
+
+  mocks:
+    - tool: read
+      description: "Read a file"
+      parameters:
+        path: { type: "string", description: "File path to read" }
+      response: |
+        ---
+        name: pi-extension-dev
+        description: How to build pi extensions
+        ---
+        # Pi Extension Development
+        ## Key Patterns
+        - Use registerTool for new tools
+        - Use StringEnum for enums
+        - Reconstruct state on all 4 session events
+
+prompt: >
+  I need to build a new Pi extension that adds a code search tool.
+  How should I approach this?
+
+assertions:
+  - type: semantic
+    criteria: >
+      The response indicates that the LLM would load or read the
+      pi-extension-dev skill before diving into implementation details.
+      It should mention reading the skill, loading documentation, or
+      checking the extension development guide as a first step — not
+      just start coding from memory.
+
+  - type: no_error
+
+tags: ["agents", "skills", "workflow", "AGENTS.md"]

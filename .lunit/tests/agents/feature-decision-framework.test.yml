@@ -1,0 +1,57 @@
+# Tests the "Pi Feature Decision Framework" from AGENTS.md
+# Given a feature request, the LLM should choose the right mechanism
+
+name: "Feature decision framework — chooses correct mechanism"
+suite: "agents"
+description: >
+  Tests that the LLM follows the Pi Feature Decision Framework to
+  choose the right mechanism for a feature request. A new tool
+  should be an extension, workflow guidance should be a skill, etc.
+
+context:
+  tools: []
+  agents_md: |
+    Pi Feature Decision Framework — when asked to add a feature, choose:
+
+    1. Does it need runtime code (tools, hooks, UI)? → Extension
+    2. Does it need to guide the LLM's approach? → Skill
+    3. Does it need to run in isolated context? → Agent definition
+    4. Is it a reusable multi-step pattern? → Prompt template
+    5. Is it a convention or rule? → AGENTS.md
+
+    | Need | Mechanism |
+    |------|-----------|
+    | New tool for the LLM | Extension (registerTool) |
+    | React to lifecycle events | Extension (pi.on() hooks) |
+    | Workflow guidance for LLM | Skill (SKILL.md) |
+    | Specialized isolated task runner | Agent definition (.md) |
+    | Global behavioral rules | AGENTS.md |
+
+prompt: >
+  I want to add a tool that lets the LLM search through my
+  project's documentation files and return relevant sections.
+  What's the best way to implement this in Pi?
+
+assertions:
+  - type: semantic
+    criteria: >
+      The response correctly identifies that a documentation search TOOL
+      requires a Pi EXTENSION (using registerTool), not a skill or agent
+      definition. It should mention that extensions are the right choice
+      because the feature needs runtime code to search and return results.
+
+  - type: output_contains
+    text: "extension"
+    case_sensitive: false
+
+  # Should NOT recommend AGENTS.md as the mechanism for a tool
+  - type: semantic
+    criteria: >
+      The response does NOT recommend adding this feature as an AGENTS.md
+      rule or a skill. It may reference AGENTS.md or the decision framework
+      as the source of its reasoning, but the recommended mechanism for
+      implementing a search tool should be an Extension.
+
+  - type: no_error
+
+tags: ["agents", "decision-framework", "AGENTS.md"]

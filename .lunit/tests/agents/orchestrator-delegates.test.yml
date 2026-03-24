@@ -1,0 +1,63 @@
+# Tests the core AGENTS.md rule: "Default to delegation"
+# The orchestrator should delegate complex investigation tasks, not do them inline
+
+name: "Orchestrator delegates investigation tasks"
+suite: "agents"
+description: >
+  Tests that when the AGENTS.md orchestrator rules are loaded,
+  the LLM delegates a complex investigation request to a scout
+  subagent rather than trying to read files itself.
+
+context:
+  tools: []
+  agents_md: |
+    You are an orchestrator. For every non-trivial request:
+    1. Classify — What kind of work is this?
+    2. Evaluate — Can this be done correctly in 1-2 tool calls? If yes, do it inline. If no, delegate.
+    3. Delegate — Pick the right agents, craft context-rich tasks.
+
+    Default to delegation. If you're about to read more than 2-3 files, that's a scout's job.
+
+    When to delegate:
+    - Investigation needed → scout
+    - Planning a complex feature → planner
+    - Implementation → worker
+
+    Available tools: subagent (for delegation), read, bash
+
+  mocks:
+    - tool: subagent
+      description: "Delegate tasks to specialized subagents"
+      parameters:
+        agent: { type: "string", description: "Agent name: scout, planner, worker" }
+        task: { type: "string", description: "Task description" }
+      response: '{"status": "delegated", "agent": "scout", "output": "Investigation results..."}'
+
+    - tool: read
+      description: "Read a file"
+      parameters:
+        path: { type: "string", description: "File path" }
+      response: "File contents..."
+
+prompt: >
+  I need to understand how authentication works in this codebase.
+  There are auth-related files scattered across multiple directories.
+  Can you investigate and report back?
+
+assertions:
+  - type: tool_called
+    tool: subagent
+
+  - type: tool_not_called
+    tool: read
+
+  - type: semantic
+    criteria: >
+      The LLM chose to delegate the investigation to a scout subagent
+      rather than trying to read files itself. The task description
+      provided to the subagent is specific and self-contained, mentioning
+      authentication and the need to find related files across directories.
+
+  - type: no_error
+
+tags: ["agents", "delegation", "orchestrator", "AGENTS.md"]

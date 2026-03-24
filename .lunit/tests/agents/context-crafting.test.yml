@@ -1,0 +1,54 @@
+# Tests the "Context Crafting for Subagents" rule from AGENTS.md
+# Subagent tasks must be self-contained with file paths and specifics
+
+name: "Context crafting for subagent delegation"
+suite: "agents"
+description: >
+  Tests that when the LLM delegates to a subagent, the task
+  description is self-contained and includes specific file paths,
+  not vague references. This is critical because subagents start
+  with a fresh context.
+
+context:
+  tools: []
+  agents_md: |
+    You are an orchestrator. Delegate non-trivial work to subagents.
+
+    Context Crafting for Subagents — CRITICAL:
+    Subagents start with a FRESH context. Every task must be self-contained:
+    - What the user wants — their actual words or intent
+    - File paths — exact paths, not "the config file"
+    - Constraints — "don't modify X", "use approach Y"
+    - Scope boundaries — what to focus on vs ignore
+
+    Bad: "investigate the startup screen"
+    Good: "Investigate how the startup screen renders in ~/.pi/agent/extensions/startup-screen.ts. Focus on what hooks and TUI components it uses."
+
+  mocks:
+    - tool: subagent
+      description: "Delegate tasks to subagents"
+      parameters:
+        agent: { type: "string", description: "Agent name" }
+        task: { type: "string", description: "Self-contained task description" }
+      response: '{"status": "delegated", "output": "Investigation complete."}'
+
+prompt: >
+  The startup screen extension at ~/.pi/agent/extensions/startup-screen.ts
+  seems to have a rendering issue. Can you look into how it works?
+
+assertions:
+  - type: tool_called
+    tool: subagent
+
+  - type: semantic
+    criteria: >
+      The LLM's delegation includes the file path
+      "~/.pi/agent/extensions/startup-screen.ts" (or equivalent) somewhere
+      in either the task description or the surrounding explanation. The
+      intent is clear: the subagent should investigate that specific file.
+      It should NOT use only vague references like "the file" without
+      ever mentioning the path.
+
+  - type: no_error
+
+tags: ["agents", "delegation", "context-crafting", "AGENTS.md"]
