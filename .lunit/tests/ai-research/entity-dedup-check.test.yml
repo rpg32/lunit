@@ -1,0 +1,71 @@
+# Tests the rule: "Check existing entities first"
+# Before creating new entities, should query the graph for duplicates
+
+name: "Checks existing entities before creating new ones"
+suite: "ai-research"
+description: >
+  Before creating entities during extraction, the LLM should check
+  the knowledge graph for existing entities to avoid duplicates.
+  The skill explicitly says "Query the graph before creating".
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/claim-extraction/SKILL.md"
+  system_prompt: >
+    You are a research assistant. Extraction: **always-after-read**
+    The knowledge graph already contains entities: mineral oil, ICCD camera,
+    optical emission spectroscopy, C2 Swan band.
+
+  mocks:
+    - tool: get_paper
+      description: "Retrieve a paper"
+      parameters:
+        paper_id: { type: "string" }
+        full_text: { type: "boolean" }
+      response: >
+        {"title": "New Observations of C2 Swan Band in Mineral Oil Discharge",
+         "full_text": "We used ICCD camera imaging and optical emission spectroscopy
+         to study C2 Swan band emission during discharge in mineral oil.
+         A novel finding was the detection of C3 radical emission at 405 nm."}
+
+    - tool: query_evidence
+      description: "Search existing entities and claims in the knowledge graph"
+      parameters:
+        entity_name: { type: "string", description: "Entity to search for" }
+      responses:
+        - match: { entity_name: "mineral oil" }
+          return: '{"found": true, "entity_id": "e:mineral-oil", "type": "material"}'
+        - match: { entity_name: "C2 Swan band" }
+          return: '{"found": true, "entity_id": "e:c2-swan", "type": "phenomenon"}'
+        - match: { entity_name: "C3 radical" }
+          return: '{"found": false}'
+        - default: '{"found": false}'
+
+    - tool: extract_claims
+      description: "Extract claims with entity references"
+      parameters:
+        paper_id: { type: "string" }
+        claims: { type: "string" }
+      response: '{"extracted": 1, "status": "ok"}'
+
+prompt: >
+  Extract findings from ref:newobs2024.
+
+assertions:
+  - type: tool_called
+    tool: query_evidence
+
+  - type: semantic
+    criteria: >
+      The LLM queries the knowledge graph for existing entities before
+      creating new ones during extraction. It should check for entities
+      like "mineral oil", "C2 Swan band", "ICCD camera", or "optical
+      emission spectroscopy" — entities mentioned in the paper that
+      might already exist. For the novel "C3 radical" finding, it may
+      need to create a new entity since it doesn't exist yet. The key
+      behavior is that it CHECKS first rather than blindly creating.
+
+  - type: no_error
+
+tags: ["ai-research", "entity-dedup", "knowledge-graph", "critical"]

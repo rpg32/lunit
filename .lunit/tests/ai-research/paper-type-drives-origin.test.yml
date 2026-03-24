@@ -1,0 +1,76 @@
+# Tests that paper type determines claim_origin correctly
+# Review articles should use secondary_assessment, not primary
+
+name: "Review paper uses secondary_assessment origin"
+suite: "ai-research"
+description: >
+  When extracting from a review article, claim_origin should be
+  'secondary_assessment' (the review's own synthesis), NOT 'primary'.
+  This is a critical distinction — reviews don't generate primary data.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/claim-extraction/SKILL.md"
+  system_prompt: >
+    You are a research assistant with access to research tools.
+    Current research context: Extraction: **always-after-read**
+
+  mocks:
+    - tool: get_paper
+      description: "Retrieve a paper from the library"
+      parameters:
+        paper_id: { type: "string" }
+        full_text: { type: "boolean" }
+      response: >
+        {"title": "A Systematic Review of Electrical Discharge in Dielectric Liquids",
+         "authors": ["Johnson & Lee"], "year": 2023,
+         "abstract": "This review surveys 45 studies on electrical breakdown in
+         dielectric liquids from 2010-2023. We find strong consensus that...",
+         "full_text": "1. Introduction: Electrical breakdown in dielectric liquids
+         has been studied extensively... 2. Search Methodology: We searched PubMed,
+         Scopus, and Web of Science using the terms... 47 papers met inclusion criteria.
+         3. Findings: The evidence consistently shows that breakdown voltage decreases
+         with gap distance. Smith et al. (2018) found 15 kV/mm threshold. Chen (2020)
+         confirmed this at 14.8 kV/mm. 4. Synthesis: Based on the reviewed literature,
+         we conclude that the Townsend-Meek criterion adequately predicts breakdown
+         onset in mineral oil at atmospheric pressure. 5. Gaps: No studies have examined
+         breakdown under combined thermal and electrical stress above 200°C."}
+
+    - tool: extract_claims
+      description: "Extract claims from a paper"
+      parameters:
+        paper_id: { type: "string" }
+        claims: { type: "string" }
+      response: '{"extracted": 2, "status": "ok"}'
+
+prompt: >
+  Read and extract findings from ref:johnson2023review.
+
+assertions:
+  - type: tool_called
+    tool: get_paper
+
+  - type: tool_called
+    tool: extract_claims
+
+  - type: semantic
+    criteria: >
+      The extraction uses 'secondary_assessment' as the claim_origin for the
+      review's synthesis conclusions (like "breakdown voltage decreases with
+      gap distance" or "Townsend-Meek criterion adequately predicts breakdown").
+      It does NOT use 'primary' — this is a review, not original research.
+      The LLM should also identify gap claims (no studies above 200°C) and
+      extract those as 'problem' role with secondary_assessment origin.
+
+  - type: semantic
+    criteria: >
+      The LLM correctly identifies this as a review article (or systematic review)
+      based on the search methodology, inclusion criteria, and synthesis of
+      multiple studies. It does NOT treat individual citations (Smith 2018,
+      Chen 2020) as this paper's own findings — those belong to their
+      respective primary sources.
+
+  - type: no_error
+
+tags: ["ai-research", "paper-type", "claim-origin", "critical"]

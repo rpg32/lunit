@@ -1,0 +1,76 @@
+# Tests the rule: "Extract the contribution, not the background"
+# Claims from the introduction citing other work should NOT be extracted as primary
+
+name: "Does not extract background citations as primary findings"
+suite: "ai-research"
+description: >
+  When a paper's introduction says "Smith et al. found X", the LLM
+  should NOT extract X as this paper's primary finding. It should
+  either skip it or use secondary_attribution. Only the paper's OWN
+  results should be primary.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/claim-extraction/SKILL.md"
+  system_prompt: >
+    You are a research assistant. Extraction: **always-after-read**
+
+  mocks:
+    - tool: get_paper
+      description: "Retrieve a paper"
+      parameters:
+        paper_id: { type: "string" }
+        full_text: { type: "boolean" }
+      response: >
+        {"title": "Temperature Effects on Discharge Propagation in Transformer Oil",
+         "authors": ["Chen et al."], "year": 2024,
+         "full_text": "Introduction: Previous work has established several key findings
+         in this domain. Smith et al. (2018) demonstrated that breakdown voltage in
+         mineral oil follows a Weibull distribution with shape parameter β=3.2.
+         Johnson & Lee (2020) showed that temperature increases above 80°C reduce
+         breakdown strength by 15% per 10°C. The Townsend-Meek streamer criterion
+         has been validated for gaps under 5mm (Davis 2019).
+
+         Methods: We conducted breakdown tests in transformer oil at temperatures
+         ranging from 25°C to 180°C using a 2mm gap...
+
+         Results: Our measurements show that at 180°C, breakdown voltage drops to
+         42% of the room-temperature value. The critical finding is that above 150°C,
+         the relationship becomes non-linear with an inflection point at 165°C.
+         We observed a new failure mode: thermal bubble nucleation preceding
+         electrical breakdown, which has not been previously reported.
+
+         Discussion: The non-linear behavior above 150°C challenges the linear
+         extrapolation model used by Johnson & Lee (2020)..."}
+
+    - tool: extract_claims
+      description: "Extract claims from a paper"
+      parameters:
+        paper_id: { type: "string" }
+        claims: { type: "string" }
+      response: '{"extracted": 3, "status": "ok"}'
+
+prompt: >
+  Read and extract from ref:chen2024.
+
+assertions:
+  - type: tool_called
+    tool: extract_claims
+
+  - type: semantic
+    criteria: >
+      The extracted claims focus on Chen's OWN findings: the 42% voltage drop
+      at 180°C, the non-linear behavior above 150°C, the inflection point at
+      165°C, and the novel thermal bubble nucleation failure mode. These should
+      have claim_origin 'primary'.
+
+      The LLM should NOT extract Smith's Weibull distribution finding, Johnson's
+      15% per 10°C reduction, or Davis's Townsend-Meek validation as primary
+      claims from this paper — those are background citations belonging to
+      their respective original papers. If mentioned at all, they should be
+      secondary_attribution.
+
+  - type: no_error
+
+tags: ["ai-research", "extraction-quality", "background-vs-contribution", "critical"]

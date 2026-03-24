@@ -1,0 +1,61 @@
+# Tests that quantitative data is captured in structured format
+# Not just mentioned in text — uses the quantitative field
+
+name: "Captures quantitative data in structured format"
+suite: "ai-research"
+description: >
+  When a paper reports measurements with specific numbers, p-values,
+  confidence intervals, or sample sizes, the extraction should use
+  the structured quantitative field rather than just describing
+  the numbers in free text.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/claim-extraction/SKILL.md"
+  system_prompt: >
+    You are a research assistant. Extraction: **always-after-read**
+
+  mocks:
+    - tool: get_paper
+      description: "Retrieve a paper"
+      parameters:
+        paper_id: { type: "string" }
+        full_text: { type: "boolean" }
+      response: >
+        {"title": "Efficacy of Treatment X vs Placebo",
+         "authors": ["Trial Group"], "year": 2024,
+         "full_text": "Results: Treatment X showed a mean reduction of 28.4 points
+         on the symptom scale (95% CI: 26.1-30.7, p < 0.001, n=1000) compared
+         to 25.8 points for the placebo group. The effect size was d=0.42.
+         Subgroup analysis by age showed HR=0.73 (95% CI: 0.61-0.87) for
+         patients over 65."}
+
+    - tool: extract_claims
+      description: "Extract claims from a paper"
+      parameters:
+        paper_id: { type: "string" }
+        claims: { type: "string" }
+      response: '{"extracted": 2, "status": "ok"}'
+
+prompt: >
+  Extract findings from ref:trial2024 — make sure to capture all the stats.
+
+assertions:
+  - type: tool_called
+    tool: extract_claims
+
+  - type: semantic
+    criteria: >
+      The extraction includes structured quantitative data fields, not just
+      free-text descriptions of numbers. The claims should capture specific
+      values like: mean_diff of 28.4, confidence interval 26.1-30.7,
+      p-value < 0.001, sample size 1000, effect size d=0.42, and the
+      hazard ratio 0.73 for the subgroup analysis. These should be in
+      a structured quantitative format (with fields like value, metric,
+      ciLow, ciHigh, pValue, sampleSize), not just mentioned in the
+      claim text.
+
+  - type: no_error
+
+tags: ["ai-research", "quantitative", "structured-data", "critical"]

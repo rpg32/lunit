@@ -1,0 +1,61 @@
+# Tests the epistemic status cap for preprints
+# Preprints should NEVER exceed "preliminary" status
+
+name: "Preprint epistemic status capped at preliminary"
+suite: "ai-research"
+description: >
+  When extracting from a preprint (arXiv, bioRxiv, etc.), the epistemic
+  status must be capped at 'preliminary' regardless of how strong the
+  findings appear. This prevents overstating unreviewed results.
+
+context:
+  tools: []
+  skills:
+    - "C:/Users/Robert/Programs/ai-research/.pi/skills/ai-research/claim-extraction/SKILL.md"
+  system_prompt: >
+    You are a research assistant. Extraction: **always-after-read**
+
+  mocks:
+    - tool: get_paper
+      description: "Retrieve a paper"
+      parameters:
+        paper_id: { type: "string" }
+        full_text: { type: "boolean" }
+      response: >
+        {"title": "Novel Room-Temperature Superconductor in LK-99 Derivative",
+         "authors": ["Wang et al."], "year": 2024,
+         "venue": "arXiv preprint arXiv:2407.xxxxx",
+         "abstract": "We report definitive evidence of room-temperature
+         superconductivity in a modified LK-99 compound...",
+         "full_text": "Our measurements show zero resistance below 127°C with
+         Meissner effect confirmed via SQUID magnetometry. Five independent
+         samples showed identical behavior. The critical temperature was
+         determined to be 400K with statistical significance p < 0.001."}
+
+    - tool: extract_claims
+      description: "Extract claims from a paper"
+      parameters:
+        paper_id: { type: "string" }
+        claims: { type: "string" }
+      response: '{"extracted": 2, "status": "ok"}'
+
+prompt: >
+  Extract the key findings from ref:wang2024 preprint.
+
+assertions:
+  - type: tool_called
+    tool: extract_claims
+
+  - type: semantic
+    criteria: >
+      Despite the paper claiming "definitive evidence" with strong statistics
+      (p < 0.001, five samples), the LLM caps the epistemic status at
+      'preliminary' because this is a preprint (arXiv). It should NOT
+      use 'single-study', 'replicated', or 'established' for any claims
+      extracted from this source. The LLM should explicitly note that
+      the preprint status limits the epistemic weight, regardless of the
+      reported strength of the findings.
+
+  - type: no_error
+
+tags: ["ai-research", "epistemic-status", "preprint", "critical"]
